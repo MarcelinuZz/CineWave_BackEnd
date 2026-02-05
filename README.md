@@ -32,11 +32,13 @@ npm start
 > **Book Detail**
 <img width="674" height="315" alt="Image" src="https://github.com/user-attachments/assets/fd1f1a87-286c-4a68-907b-aa785566687a" />
 
+> **Payment With Midtrans**
+<img width="1896" height="902" alt="Image" src="https://github.com/user-attachments/assets/01b64368-0717-4d95-918e-1fa82379a93d" />
+
 > **Payment History**
-<img width="674" height="315" alt="Image" src="https://github.com/user-attachments/assets/34f1c635-b749-423f-9b45-55cb454955dc" />
+<img width="1899" height="904" alt="Image" src="https://github.com/user-attachments/assets/50298c67-3291-4c3e-93e5-87daa6823466" />
 
 > **My Ticket Page**
 <img width="674" height="319" alt="Image" src="https://github.com/user-attachments/assets/3851f688-e762-4511-941d-5b97e2586491" />
 
 
-# Showcase

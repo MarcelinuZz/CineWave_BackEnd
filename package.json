@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node --watch ./bin/www",
-    "DevStart": "nodemon app.js"
+    "DevStart": "nodemon ./bin/www"
   },
   "dependencies": {
     "animate.css": "^4.1.1",

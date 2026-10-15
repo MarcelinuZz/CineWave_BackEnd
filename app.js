@@ -64,4 +64,11 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
+}
+
 module.exports = app;

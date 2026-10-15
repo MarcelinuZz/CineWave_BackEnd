@@ -2,14 +2,15 @@ const sql = require('mssql');
 
 // Konfigurasikan database config sesuai dengan authentication configuration di machine kalian!
 const config = {
-    user: 'sa',
-    password: 'test4321',
-    server: 'HELIOS\\SQLEXPRESS',
-    database: 'bioskop',
-    options: {
-        encrypt: true,
-        trustServerCertificate: true,
-    },
+  user: 'linus',
+  password: 'abcd1234',
+  server: '127.0.0.1',
+  port: 1433,
+  database: 'Cinewave',
+  options: {
+    encrypt: false,
+    trustServerCertificate: true
+  }
 };
 
 

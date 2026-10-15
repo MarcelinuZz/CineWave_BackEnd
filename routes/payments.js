@@ -123,50 +123,75 @@ router.post('/RefreshStatus', authenticateJWT, async (req, res) => {
 
     try {
         const RefreshStatus = await getMidtransTransactionStatus(order_id);
-        const { transaction_status, payment_type, gross_amount, order_id: returnedOrderId } = RefreshStatus;
+        
+        // If Midtrans hasn't initialized the transaction (404) or status is missing, keep as pending
+        if (!RefreshStatus || RefreshStatus.status_code === '404' || !RefreshStatus.transaction_status) {
+            return res.status(200).json({ 
+                message: 'Transaction is pending or awaiting payment details', 
+                transaction_status: 'pending' 
+            });
+        }
 
-        console.log(`Order ID: ${returnedOrderId}`);
+        const { transaction_status, payment_type, gross_amount, order_id: returnedOrderId, va_numbers } = RefreshStatus;
+
+        console.log(`Order ID: ${returnedOrderId || order_id}`);
         console.log(`Transaction Status: ${transaction_status}`);
         console.log(`Payment Type: ${payment_type}`);
         console.log(`Gross Amount: ${gross_amount}`);
 
-        const ticket_id = order_id.slice(15);
+        let vaNumber = null;
+        if (va_numbers && va_numbers.length > 0) {
+            vaNumber = va_numbers[0].va_number;
+        } else if (RefreshStatus.permata_va_number) {
+            vaNumber = RefreshStatus.permata_va_number;
+        } else if (RefreshStatus.bill_key) {
+            vaNumber = RefreshStatus.bill_key;
+        }
 
         const pool = await dbConfig.connectToDatabase();
 
         const result = await pool.request()
             .input('order_id', order_id)
             .query(`
-                SELECT payment_date FROM payments WHERE order_id = @order_id
+                SELECT ticket_id, payment_date, va_number FROM payments WHERE order_id = @order_id
             `);
 
-        let payment_date = null;
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ message: 'Payment record not found for order ID' });
+        }
 
-        if (transaction_status === 'settlement' && !result.recordset[0].payment_date) {
-            payment_date = new Date();
-        } else {
-            payment_date = result.recordset[0].payment_date;
+        const ticket_id = result.recordset[0].ticket_id || order_id.slice(15);
+        let payment_date = result.recordset[0].payment_date;
+
+        const isSettled = transaction_status === 'settlement' || transaction_status === 'capture';
+
+        if (isSettled) {
+            payment_date = payment_date || new Date();
         }
 
         await pool.request()
             .input('order_id', order_id)
             .input('payment_status', transaction_status)
+            .input('payment_method', payment_type || 'midtrans')
+            .input('va_number', vaNumber)
             .input('payment_date', payment_date)
             .query(`
                 UPDATE payments
                 SET payment_status = @payment_status,
+                    payment_method = COALESCE(@payment_method, payment_method),
+                    va_number = COALESCE(@va_number, va_number),
                     payment_date = @payment_date
                 WHERE order_id = @order_id
             `);
 
-        if (transaction_status === 'settlement') {
+        if (isSettled) {
             await pool.request()
                 .input('ticket_id', ticket_id)
                 .input('payment_date', payment_date)
                 .query(`
                     UPDATE tickets
                     SET status = 'Completed',
-                        created_at = @payment_date -- Update payment_date
+                        created_at = @payment_date
                     WHERE showtime_id = (
                         SELECT showtime_id
                         FROM GroupTicket
@@ -192,7 +217,7 @@ router.post('/RefreshStatus', authenticateJWT, async (req, res) => {
                     WHERE ticket_id = @ticket_id;
                 `);
 
-            return res.status(201).json({ message: 'Payment status updated successfully', transaction_status });
+            return res.status(200).json({ message: 'Payment status updated successfully', transaction_status });
         }
 
         res.status(200).json({ message: 'Payment status refreshed successfully', transaction_status });
@@ -225,7 +250,8 @@ router.get('/payments', authenticateJWT, async (req, res) => {
             FROM payments p
             JOIN GroupTicket gt
             ON p.ticket_id = gt.ticket_id 
-            WHERE gt.user_id = @user_id;
+            WHERE gt.user_id = @user_id
+            ORDER BY p.payment_id DESC;
         `);
 
         console.log(result.recordset);
@@ -251,17 +277,17 @@ router.get('/payments', authenticateJWT, async (req, res) => {
     try {
       const pool = await dbConfig.connectToDatabase();
 
-      // Query untuk memeriksa apakah ticket_id ada di tabel payments
+      // Query untuk memeriksa apakah ticket_id ada di tabel payments dengan status settlement
       const paymentResult = await pool
         .request()
         .input('ticket_id', ticket_id)
         .query(`
           SELECT payment_id
           FROM payments
-          WHERE ticket_id = @ticket_id
+          WHERE ticket_id = @ticket_id AND payment_status = 'settlement'
         `);
 
-      // Jika ticket_id sudah ada di payments (berarti sudah dibayar)
+      // Jika ticket_id sudah ada di payments dan status settlement (berarti sudah dibayar orang lain)
       if (paymentResult.recordset.length > 0) {
         return res.status(400).json({ message: 'Someone Already Bought this Ticket.' });
       }
